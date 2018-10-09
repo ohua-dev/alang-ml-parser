@@ -54,6 +54,11 @@ main =
                     "a"
                     (Lambda (Destructure ["b", "c"]) $
                      Let "_" ("print" `Apply` "a") "c")
+        describe "comments" $ do
+            it "parses a comment" $
+                lp "a (* comment *)" `shouldBe` "a"
+            it "parses a comment in an application" $
+                lp "a (* another comment *) b" `shouldBe` "a" `Apply` "b"
         it "parses the example module" $ (parseMod <$> B.readFile "test-resources/something.ohuaml")
             `shouldReturn`
             Namespace ["some_ns"]

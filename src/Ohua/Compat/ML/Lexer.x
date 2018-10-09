@@ -35,7 +35,8 @@ $sep = [$white]
 
 
 :-
-
+<0> {
+    "(*"            { begin comment }
     "("             { direct LParen }
     ")"             { direct RParen }
     "{"             { direct LBrace }
@@ -63,7 +64,10 @@ $sep = [$white]
     $sep            ;
 
     $reserved       { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> decodeUtf8 s }
+}
 
+<comment> "*)"      { begin 0 }
+<comment> . ;
 
 {
 type Input = BS.ByteString

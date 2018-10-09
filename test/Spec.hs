@@ -10,9 +10,6 @@ import           Ohua.ALang.NS
 import           Ohua.Compat.ML.Parser
 import           Test.Hspec
 
-deriving instance Show a => Show (Namespace a)
-deriving instance Eq a => Eq (Namespace a)
-
 lp :: B.ByteString -> Expr SomeBinding
 lp = parseExp
 
@@ -50,25 +47,29 @@ main =
                     (Lambda (Destructure ["b", "c"]) $
                      Let "_" ("print" `Apply` "a") "c")
         describe "comments" $ do
-            it "parses a comment" $
-                lp "a (* comment *)" `shouldBe` "a"
+            it "parses a comment" $ lp "a (* comment *)" `shouldBe` "a"
             it "parses a comment in an application" $
                 lp "a (* another comment *) b" `shouldBe` "a" `Apply` "b"
         it "supports the wildcard binding" $ do
             lp "_" `shouldBe` "_"
             lp "let (_, _) = a in b" `shouldBe` Let ["_", "_"] "a" "b"
-        it "parses the example module" $ (parseMod <$> B.readFile "test-resources/something.ohuaml")
-            `shouldReturn`
-            Namespace ["some_ns"]
-                [ (["some","module"], ["a"]) ]
-                [ (["ohua","math"],["add","isZero"]) ]
-                [ ("square", Lambda "x" ("add" `Apply` "x" `Apply` "x"))
-                , ("algo1", Lambda "someParam" $
-                        Let "a" ("square" `Apply` "someParam") $
-                        Let "coll0" ("ohua.lang/smap" `Apply` Lambda "i" ("square" `Apply` "i") `Apply` "coll")
-                        ("ohua.lang/if"
-                            `Apply` ("isZero" `Apply` "a")
-                            `Apply` Lambda "_" "coll0"
-                            `Apply` Lambda "_" "a"))
-                , ("main", Lambda "param" $ Lambda "param2" ("algo0" `Apply` "param"))
-                ]
+        it "parses the example module" $
+            (parseMod <$> B.readFile "test-resources/something.ohuaml") `shouldReturn`
+            ((emptyNamespace ["some_ns"] :: Namespace ()) &
+             algoImports .~ [(["some", "module"], ["a"])] &
+             sfImports .~ [(["ohua", "math"], ["add", "isZero"])] &
+             decls .~
+             [ ("square", Lambda "x" ("add" `Apply` "x" `Apply` "x"))
+             , ( "algo1"
+               , Lambda "someParam" $
+                 Let "a" ("square" `Apply` "someParam") $
+                 Let
+                     "coll0"
+                     ("ohua.lang/smap" `Apply` Lambda "i" ("square" `Apply` "i") `Apply`
+                      "coll")
+                     ("ohua.lang/if" `Apply` ("isZero" `Apply` "a") `Apply`
+                      Lambda "_" "coll0" `Apply`
+                      Lambda "_" "a"))
+             , ( "main"
+               , Lambda "param" $ Lambda "param2" ("algo0" `Apply` "param"))
+             ])

@@ -8,7 +8,7 @@
 -- Stability   : experimental
 
 -- This source code is licensed under the terms described in the associated LICENSE.TXT file
-{-# LANGUAGE OverloadedStrings, LambdaCase, TupleSections, TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase, TupleSections, TypeFamilies, FlexibleContexts #-}
 module Ohua.Compat.ML.Parser
     ( parseMod, parseExp
     , Namespace(..)
@@ -198,8 +198,10 @@ parseExp = runPM parseExpRaw
 parseMod :: Input -> Namespace (Expr SomeBinding)
 parseMod = f . runPM parseModRaw
   where
-    f (name, imports, decls) = Namespace name algoRequires sfRequires algos
+    f (name, imports, decls0) = (emptyNamespace name :: Namespace SomeBinding)
+      & algoImports .~ algoRequires
+      & sfImports .~ sfRequires
+      & decls .~ HM.fromList decls0
       where
         (sfRequires, algoRequires) = partitionEithers imports
-        algos = HM.fromList decls -- ignores algos which are defined twice
 }

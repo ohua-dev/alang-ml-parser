@@ -57,9 +57,9 @@ main =
             (parseMod <$> B.readFile "test-resources/something.ohuaml") `shouldReturn`
             ((emptyNamespace ["some_ns"] :: Namespace ()) &
              algoImports .~ [(["some", "module"], ["a"])] &
-             sfImports .~ [(["ohua", "math"], ["add", "isZero"])] &
+             sfImports .~ [(["ohua", "math"], ["mult", "isZero"])] &
              decls .~
-             [ ("square", Lambda "x" ("add" `Apply` "x" `Apply` "x"))
+             [ ("square", Lambda "x" ("mult" `Apply` "x" `Apply` "x"))
              , ( "algo1"
                , Lambda "someParam" $
                  Let "a" ("square" `Apply` "someParam") $

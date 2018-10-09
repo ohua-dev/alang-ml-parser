@@ -13,7 +13,32 @@ dependencies:
 - ohua-core
 - bytestring
 default-extensions:
+- OverloadedStrings
+- OverloadedLists
+- MultiParamTypeClasses
+- FunctionalDependencies
+- TypeFamilies
+- GADTs
+- FlexibleContexts
+- FlexibleInstances
+- TypeSynonymInstances
+- LambdaCase
+- TupleSections
+- BangPatterns
+- ExplicitForAll
+- ScopedTypeVariables
+- DefaultSignatures
+- DeriveFunctor
+- DeriveFoldable
+- DeriveTraversable
+- DeriveGeneric
+- PatternSynonyms
+- NamedFieldPuns
+- RecordWildCards
+- ConstraintKinds
+- StandaloneDeriving
 - NoImplicitPrelude
+- RankNTypes
 library:
   source-dirs: src
   exposed-modules:
@@ -36,3 +61,6 @@ tests:
     dependencies:
     - alang-ml-parser
     - hspec
+    - QuickCheck
+    - text
+    - unordered-containers

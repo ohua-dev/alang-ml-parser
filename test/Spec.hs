@@ -9,6 +9,9 @@ import           Ohua.ALang.Lang
 import           Ohua.ALang.NS
 import           Ohua.Compat.ML.Parser
 import           Test.Hspec
+import Test.Hspec.QuickCheck
+import Ohua.Types.Arbitrary ()
+import Ohua.ALang.PPrint
 
 lp :: B.ByteString -> Expr SomeBinding
 lp = parseExp
@@ -46,6 +49,8 @@ main =
                     "a"
                     (Lambda (Destructure ["b", "c"]) $
                      Let "_" ("print" `Apply` "a") "c")
+            it "parses a let following a statement" $
+                lp "print a; let x = b in b" `shouldBe` Let "_" ("print" `Apply` "a") (Let "x" "b" "b")
         describe "comments" $ do
             it "parses a comment" $ lp "a (* comment *)" `shouldBe` "a"
             it "parses a comment in an application" $
@@ -73,3 +78,15 @@ main =
              , ( "main"
                , Lambda "param" $ Lambda "param2" ("algo0" `Apply` "param"))
              ])
+        describe "pretty-printing <=> parsing equality" $ do
+          prop "parses pretty printed alang" $
+            \expr ->
+              lp (encodeUtf8 (quickRender expr)) == (expr :: Expr SomeBinding)
+          -- This test kinda works, but also runs into some infinite loop ...
+          -- we should figure out why at some point, but for now it seems to
+          -- work ... kind
+          -- prop "parses a pretty printed namespace" $
+          --   \ns ->
+          --     if parseMod (encodeUtf8 (quickRender ns)) /= ns
+          --     then trace (quickRender ns) False
+          --     else True

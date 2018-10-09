@@ -60,7 +60,7 @@ import Prelude ((!!))
     ';;'            { OPDoubleSemicolon }
     ','             { OPComma }
     '->'            { OPArrow }
-    '\\'            { OPBackslash }
+    '\\'            { OPLambda }
 
 %%
 

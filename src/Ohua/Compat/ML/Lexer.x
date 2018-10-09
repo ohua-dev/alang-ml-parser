@@ -57,7 +57,8 @@ $sep = [$white]
     ","             { direct OPComma }
     "->"            { direct OPArrow }
     "=>"            { direct OPDoubleArrow }
-    "\"             { direct OPBackslash } -- "
+    "\"             { direct OPLambda } -- "
+    "λ"             { direct OPLambda }
     @id             { tokenOverInputStr $ UnqualId . convertId }
     @ns\/@id        { tokenOverInputStr $ QualId . mkQualId }
     @ns             { tokenOverInputStr $ ModuleId . mkNSRef }
@@ -97,7 +98,7 @@ data Lexeme
     | OPComma -- ^ operator @,@
     | OPArrow -- ^ operator @->@
     | OPDoubleArrow -- ^ operator @=>@
-    | OPBackslash -- ^ operator @\\@
+    | OPLambda -- ^ operator @\\@ or @λ@
     | UnqualId Binding -- ^ an identifier
     | QualId QualifiedBinding -- ^ a qualified binding
     | ModuleId NSRef -- ^ an identifier for a module

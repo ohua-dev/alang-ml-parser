@@ -1,7 +1,7 @@
 {
 -- |
 -- Module      : $Header$
--- Description : Parser for ALang S-Expressions
+-- Description : Parser for ALang ML-Expressions
 -- Copyright   : (c) Justus Adam 2018. All Rights Reserved.
 -- License     : EPL-1.0
 -- Maintainer  : dev@justus.science
@@ -52,23 +52,32 @@ import Prelude ((!!))
     else            { KWElse }
     '('             { LParen }
     ')'             { RParen }
+    '{'             { LBrace }
+    '}'             { RBrace }
     '='             { OPEq }
     ':'             { OPColon }
     ';'             { OPSemicolon }
-    ';;'            { OPDoubleSemicolon }
     ','             { OPComma }
     '->'            { OPArrow }
     '\\'            { OPBackslash }
 
 %%
 
+many1 (p)
+    : p many1(p) { $1 : $2 }
+    | p          { [$1] }
+
 many (p)
-    : p many(p)  { $1 : $2 }
-    |            { [] }
+    : many1(p)  { $1 }
+    |           { [] }
+
+many_sep1(p, sep)
+    : p sep many_sep1(p, sep) { $1 : $3 }
+    | p                       { [$1] }
 
 many_sep(p, sep)
-    : p sep many_sep(p, sep) { $1 : $3 }
-    | p                      { [$1] }
+    : many_sep1(p, sep) { $1 }
+    |                   { [] }
 
 opt(p)
     : p { Just $1 }
@@ -86,7 +95,7 @@ ModId
 
 Module :: { Module }
 Module
-    : ModHeader many(Import) many(Decl) { ($1, $2, $3) }
+    : ModHeader many(Import) many_sep(Decl, ';') { ($1, $2, $3) }
 
 ModHeader :: { ModHeader }
 ModHeader
@@ -94,12 +103,15 @@ ModHeader
 
 Import :: { Import }
 Import
-    : import ImportType ModId { $2 $3 }
+    : import ImportType ModId opt(Refers) { $2 ($3, fromMaybe [] $4) }
 
-ImportType :: { NSRef -> Import }
+Refers :: { [Binding] }
+    : '(' many_sep(id, ',') ')' { $2 }
+
+ImportType :: { (NSRef, [Binding]) -> Import }
 ImportType
-    : algo { Left }
-    | sf { Right }
+    : algo { Right }
+    | sf { Left }
 
 Decl :: { Decl }
 Decl
@@ -107,26 +119,30 @@ Decl
 
 ValDecl :: { ValDecl }
 ValDecl
-    : let id '=' Exp { ($2, $4) }
+    : let LetRhs '=' Exp { case $2 of Left xs -> error $ "Destructuring not allowed for top level bindings: " <> show xs; Right (bnd, f) -> (bnd, f $4) }
 
 SimpleExp :: { Exp }
 SimpleExp
     : '(' TupleOrExp ')' { $2 }
     | SomeId { Var $1 }
+    | '{' many_sep1(Exp, ';') '}' { let x : xs = $2; ys = x :| xs in foldr' ignoreArgLet (last ys) (init ys) }
 
 Exp :: { Exp }
 Exp
     : Exp SimpleExp { Apply $1 $2 }
-    | '\\' Pat '->' Exp { Lambda $2 $4 }
-    | let Let in Exp { $2 $4 }
+    | '\\' many1(Pat) '->' Exp { foldr' Lambda $4 $2 }
+    | let many_sep(Let, ';') in Exp { foldr' ($) $4 $2 }
     | if Exp then Exp else Exp { Refs.ifBuiltin `Apply` $2 `Apply` ignoreArgLambda $4 `Apply` ignoreArgLambda $6 }
-    | Exp ';' Exp { ignoreArgLet $1 $3 }
     | SimpleExp { $1 }
 
 Let :: { Exp -> Exp }
 Let
-    : Pat '=' Exp { Let $1 $3 }
+    : LetRhs '=' Exp { case $1 of Left xs -> Let xs $3; Right (bnd, f) -> Let (Direct bnd) (f $3) }
 
+LetRhs :: { Either Assignment (Binding, Exp -> Exp) }
+LetRhs
+    : Destructure { Left $1 }
+    | id many(Pat) { Right ($1, \a -> foldr' Lambda a $2) }
 
 TupleOrExp :: { Exp }
 TupleOrExp
@@ -134,16 +150,18 @@ TupleOrExp
 
 Pat :: { Pat }
 Pat
-    : '(' many_sep(id, ',') ')' { case $2 of [x] -> Direct x; xs -> Destructure xs }
+    : Destructure { $1 }
     | id { Direct $1 }
 
+Destructure :: { Pat }
+    : '(' many_sep(id, ',') ')' { case $2 of [x] -> Direct x; xs -> Destructure xs }
 
 {
 
 type Decl = ValDecl
 type ValDecl = (Binding, Exp)
 type Module = (ModHeader, [Import], [Decl])
-type Import = Either NSRef NSRef
+type Import = Either (NSRef, [Binding]) (NSRef, [Binding])
 type ModHeader = NSRef
 type Exp = Expr SomeBinding
 type Pat = Assignment
@@ -152,8 +170,6 @@ type PM = Alex
 ignoreArgLambda = Lambda (Direct "_")
 ignoreArgLet = Let (Direct "_")
 
-
--- | Parse a stream of tokens into a simple ALang expression
 
 nextToken :: PM Lexeme
 nextToken = alexMonadScan
@@ -177,9 +193,8 @@ parseExp = runPM parseExpRaw
 parseMod :: Input -> Namespace (Expr SomeBinding)
 parseMod = f . runPM parseModRaw
   where
-    f (name, imports, decls) = Namespace name (toGeneralImport algoRequires) (toGeneralImport sfRequires) algos
+    f (name, imports, decls) = Namespace name algoRequires sfRequires algos
       where
-        toGeneralImport = map (,[])
         (sfRequires, algoRequires) = partitionEithers imports
         algos = HM.fromList decls -- ignores algos which are defined twice
 }

@@ -26,7 +26,7 @@ $char = [a-zA-Z]
 $sym  = [\-\>\<\$\*\+\?\~\^\=_]
 $numerical = [0-9]
 $reserved = [@\#\{\}\[\]]
-$idstartchar = [$char]
+$idstartchar = [$char _]
 $idchar = [$numerical $idstartchar]
 $sep = [$white]
 
@@ -38,6 +38,8 @@ $sep = [$white]
 
     "("             { direct LParen }
     ")"             { direct RParen }
+    "{"             { direct LBrace }
+    "}"             { direct RBrace }
     "let"           { direct KWLet }
     "in"            { direct KWIn }
     "if"            { direct KWIf }
@@ -50,10 +52,10 @@ $sep = [$white]
     "="             { direct OPEq }
     ":"             { direct OPColon }
     ";"             { direct OPSemicolon }
-    ";;"            { direct OPDoubleSemicolon }
     ","             { direct OPComma }
     "->"            { direct OPArrow }
-    "\"             { direct OPBackslash }
+    "=>"            { direct OPDoubleArrow }
+    "\"             { direct OPBackslash } -- "
     @id             { tokenOverInputStr $ UnqualId . convertId }
     @ns\/@id        { tokenOverInputStr $ QualId . mkQualId }
     @ns             { tokenOverInputStr $ ModuleId . mkNSRef }
@@ -69,6 +71,8 @@ type Input = BS.ByteString
 data Lexeme
     = LParen -- ^ @(@
     | RParen -- ^ @)@
+    | LBrace -- ^ @{@
+    | RBrace -- ^ @}@
     | KWLet -- ^ keyword @let@
     | KWIn -- ^ keyword @in@
     | KWIf -- ^ keyword @if@
@@ -81,9 +85,9 @@ data Lexeme
     | OPEq -- ^ operator @=@
     | OPColon -- ^ operator @:@
     | OPSemicolon -- ^ operator @;@
-    | OPDoubleSemicolon -- ^ operator @;;@
     | OPComma -- ^ operator @,@
     | OPArrow -- ^ operator @->@
+    | OPDoubleArrow -- ^ operator @=>@
     | OPBackslash -- ^ operator @\\@
     | UnqualId Binding -- ^ an identifier
     | QualId QualifiedBinding -- ^ a qualified binding

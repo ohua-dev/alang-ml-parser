@@ -53,6 +53,7 @@ $sep = [$white]
     "="             { direct OPEq }
     ":"             { direct OPColon }
     ";"             { direct OPSemicolon }
+    ";;"            { direct OPDoubleSemicolon }
     ","             { direct OPComma }
     "->"            { direct OPArrow }
     "=>"            { direct OPDoubleArrow }
@@ -66,8 +67,11 @@ $sep = [$white]
     $reserved       { withMatchedInput $ \s -> alexError $ "Reserved symbol: " <> decodeUtf8 s }
 }
 
-<comment> "*)"      { begin 0 }
-<comment> . ;
+<comment> {
+    "*)"      { begin 0 }
+    . ;
+    \n ;
+}
 
 {
 type Input = BS.ByteString
@@ -89,6 +93,7 @@ data Lexeme
     | OPEq -- ^ operator @=@
     | OPColon -- ^ operator @:@
     | OPSemicolon -- ^ operator @;@
+    | OPDoubleSemicolon -- ^ operator @;;@
     | OPComma -- ^ operator @,@
     | OPArrow -- ^ operator @->@
     | OPDoubleArrow -- ^ operator @=>@

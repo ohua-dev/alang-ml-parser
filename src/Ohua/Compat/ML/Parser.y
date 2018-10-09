@@ -57,6 +57,7 @@ import Prelude ((!!))
     '='             { OPEq }
     ':'             { OPColon }
     ';'             { OPSemicolon }
+    ';;'            { OPDoubleSemicolon }
     ','             { OPComma }
     '->'            { OPArrow }
     '\\'            { OPBackslash }
@@ -83,6 +84,10 @@ opt(p)
     : p { Just $1 }
     |   { Nothing }
 
+or(a, b)
+    : a { Left $1 }
+    | b { Right $1 }
+
 SomeId :: { SomeBinding }
 SomeId
     : id     { Unqual $1 }
@@ -95,7 +100,7 @@ ModId
 
 Module :: { Module }
 Module
-    : ModHeader many(Import) many_sep(Decl, ';') { ($1, $2, $3) }
+    : ModHeader many(Import) many(Decl) { ($1, $2, $3) }
 
 ModHeader :: { ModHeader }
 ModHeader
@@ -103,7 +108,7 @@ ModHeader
 
 Import :: { Import }
 Import
-    : import ImportType ModId opt(Refers) { $2 ($3, fromMaybe [] $4) }
+    : import ImportType ModId opt(Refers) opt(';;') { $2 ($3, fromMaybe [] $4) }
 
 Refers :: { [Binding] }
     : '(' many_sep(id, ',') ')' { $2 }
@@ -111,7 +116,7 @@ Refers :: { [Binding] }
 ImportType :: { (NSRef, [Binding]) -> Import }
 ImportType
     : algo { Right }
-    | sf { Left }
+    | sf   { Left }
 
 Decl :: { Decl }
 Decl
@@ -119,21 +124,21 @@ Decl
 
 ValDecl :: { ValDecl }
 ValDecl
-    : let LetRhs '=' Exp { case $2 of Left xs -> error $ "Destructuring not allowed for top level bindings: " <> show xs; Right (bnd, f) -> (bnd, f $4) }
+    : let LetRhs '=' Exp ';;' { case $2 of Left xs -> error $ "Destructuring not allowed for top level bindings: " <> show xs; Right (bnd, f) -> (bnd, f $4) }
 
 SimpleExp :: { Exp }
 SimpleExp
     : '(' TupleOrExp ')' { $2 }
-    | SomeId { Var $1 }
-    | '{' many_sep1(Exp, ';') '}' { let x : xs = $2; ys = x :| xs in foldr' ignoreArgLet (last ys) (init ys) }
+    | SomeId             { Var $1 }
 
 Exp :: { Exp }
 Exp
-    : Exp SimpleExp { Apply $1 $2 }
+    : Exp SimpleExp            { Apply $1 $2 }
     | '\\' many1(Pat) '->' Exp { foldr' Lambda $4 $2 }
-    | let many_sep(Let, ';') in Exp { foldr' ($) $4 $2 }
+    | let Let in Exp           { $2 $4 }
     | if Exp then Exp else Exp { Refs.ifBuiltin `Apply` $2 `Apply` ignoreArgLambda $4 `Apply` ignoreArgLambda $6 }
-    | SimpleExp { $1 }
+    | Exp ';' Exp              { ignoreArgLet $1 $3 }
+    | SimpleExp                { $1 }
 
 Let :: { Exp -> Exp }
 Let
@@ -141,7 +146,7 @@ Let
 
 LetRhs :: { Either Assignment (Binding, Exp -> Exp) }
 LetRhs
-    : Destructure { Left $1 }
+    : Destructure  { Left $1 }
     | id many(Pat) { Right ($1, \a -> foldr' Lambda a $2) }
 
 TupleOrExp :: { Exp }
@@ -151,7 +156,7 @@ TupleOrExp
 Pat :: { Pat }
 Pat
     : Destructure { $1 }
-    | id { Direct $1 }
+    | id          { Direct $1 }
 
 Destructure :: { Pat }
     : '(' many_sep(id, ',') ')' { case $2 of [x] -> Direct x; xs -> Destructure xs }

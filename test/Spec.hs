@@ -7,7 +7,6 @@ import Ohua.Prelude
 import           Data.ByteString.Lazy     as B
 import           Ohua.ALang.Lang
 import           Ohua.ALang.NS
-import           Ohua.Compat.ML.Lexer
 import           Ohua.Compat.ML.Parser
 import           Test.Hspec
 
@@ -32,24 +31,20 @@ main =
                 ("something" `Apply` "a" `Apply` "b" `Apply` "c")
         describe "let" $ do
             it "parses a let" $ lp "let a = b in b" `shouldBe` Let "a" "b" "b"
-            -- it "parses a let terminating with ';'" $
-            --     lp "let a = b; in b" `shouldBe` Let "a" "b" "b"
             it "parses longer let binds" $
-                lp "let a = r; b = f; c = print j in a" `shouldBe`
+                lp "let a = r in let b = f in let c = print j in a" `shouldBe`
                 Let "a" "r" (Let "b" "f" $ Let "c" ("print" `Apply` "j") "a")
-            it "parses a block" $
-                lp "{ print q; a }" `shouldBe` Let "_" ("print" `Apply` "q") "a"
         describe "lambda" $ do
             it "parses a simple lambda" $
                 lp "\\ a -> b" `shouldBe` Lambda "a" "b"
             it "parses consecutive lambdas" $
-                lp "\\ a -> \\ (b, c) -> { print a; c }" `shouldBe`
+                lp "\\ a -> \\ (b, c) -> print a; c" `shouldBe`
                 Lambda
                     "a"
                     (Lambda (Destructure ["b", "c"]) $
                      Let "_" ("print" `Apply` "a") "c")
             it "parses a lambda with 2 arguments" $
-                lp "\\ a (b, c) -> { print a; c }" `shouldBe`
+                lp "\\ a (b, c) -> print a; c" `shouldBe`
                 Lambda
                     "a"
                     (Lambda (Destructure ["b", "c"]) $
@@ -59,6 +54,9 @@ main =
                 lp "a (* comment *)" `shouldBe` "a"
             it "parses a comment in an application" $
                 lp "a (* another comment *) b" `shouldBe` "a" `Apply` "b"
+        it "supports the wildcard binding" $ do
+            lp "_" `shouldBe` "_"
+            lp "let (_, _) = a in b" `shouldBe` Let ["_", "_"] "a" "b"
         it "parses the example module" $ (parseMod <$> B.readFile "test-resources/something.ohuaml")
             `shouldReturn`
             Namespace ["some_ns"]

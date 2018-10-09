@@ -1,17 +1,32 @@
+
+(* Comments are eclosed thusly *)
+
+(* Each module has a name *)
 module some_ns
 
-import sf ohua.math (add, isZero)
-import algo some.module (a)
 
-let square = \x -> add x x;
+(* imports are either algos or stateful functions. Using `import` brings the
+*module* into scope. Individual items may be included in the refer list
+following it, which means they may be used unqualified. *)
+
+import sf ohua.math (add, isZero)
+import algo some.module (a);; (* the `;;` is optional here *)
+
+
+(* top level bindings are defined with `let` and terminate with `;;` *)
+let square = \x -> add x x;;
+
+(* top level bindings can use the function syntactic sugar of `name [patterns] =
+body` for `name = \pat0 -> \pat1 -> ... -> body` *)
 
 let algo1 someParam =
-    let a = square someParam;
-        coll0 = ohua.lang/smap (\i -> square i) coll
-    in
-      if isZero a
-      then coll0
-      else a;
+    (* lets are of the form `let pattern = expression in expression` *)
+    let a = square someParam in
+    let coll0 = ohua.lang/smap (\i -> square i) coll in
+    (* if-then-else expressions are supported as one would exprect *)
+    if isZero a
+    then coll0
+    else a;;
 
 let main param param2 =
-    algo0 param
+    algo0 param;;

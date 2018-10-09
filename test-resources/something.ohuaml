@@ -1,0 +1,17 @@
+module some_ns
+
+import sf ohua.math (add, isZero)
+import algo some.module (a)
+
+let square = \x -> add x x;
+
+let algo1 someParam =
+    let a = square someParam;
+        coll0 = ohua.lang/smap (\i -> square i) coll
+    in
+      if isZero a
+      then coll0
+      else a;
+
+let main param param2 =
+    algo0 param

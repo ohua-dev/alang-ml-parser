@@ -1,7 +1,7 @@
 
-(* Comments are eclosed thusly *)
+(* comments are enclosed thusly *)
 
-(* Each module has a name *)
+(* each module has a name *)
 module some_ns
 
 
@@ -9,12 +9,12 @@ module some_ns
 *module* into scope. Individual items may be included in the refer list
 following it, which means they may be used unqualified. *)
 
-import sf ohua.math (add, isZero)
+import sf ohua.math (mult, isZero)
 import algo some.module (a);; (* the `;;` is optional here *)
 
 
 (* top level bindings are defined with `let` and terminate with `;;` *)
-let square = \x -> add x x;;
+let square = \x -> mult x x;;
 
 (* top level bindings can use the function syntactic sugar of `name [patterns] =
 body` for `name = \pat0 -> \pat1 -> ... -> body` *)
@@ -23,7 +23,7 @@ let algo1 someParam =
     (* lets are of the form `let pattern = expression in expression` *)
     let a = square someParam in
     let coll0 = ohua.lang/smap (\i -> square i) coll in
-    (* if-then-else expressions are supported as one would exprect *)
+    (* if-then-else expressions are supported as one would expect *)
     if isZero a
     then coll0
     else a;;

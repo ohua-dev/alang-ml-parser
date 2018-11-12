@@ -5,13 +5,15 @@
 import Ohua.Prelude
 
 import           Data.ByteString.Lazy     as B
-import           Ohua.ALang.Lang
-import           Ohua.ALang.NS
-import           Ohua.Compat.ML.Parser
 import           Test.Hspec
 import Test.Hspec.QuickCheck
-import Ohua.Types.Arbitrary ()
+
+import Ohua.ALang.Lang
+import Ohua.ALang.NS
 import Ohua.ALang.PPrint
+import Ohua.Compat.ML.Parser
+import Ohua.Types.Arbitrary ()
+import Ohua.Unit
 
 lp :: B.ByteString -> Expr SomeBinding
 lp = parseExp
@@ -24,6 +26,10 @@ main =
             it "parses an unqualified binding" $ lp "a" `shouldBe` "a"
             it "parses a qualified binding" $
                 lp "a.b/c" `shouldBe` Var (Qual "a.b/c")
+            it "parses env refs" $
+                parseExprWithEnvRef "$1" `shouldBe` Var (Left 1)
+            it "parses unit" $
+                lp "()" `shouldBe` someUnitExpr
         describe "apply" $ do
             it "parses a simple apply" $ lp "a b" `shouldBe` ("a" `Apply` "b")
             it "parses a multi apply" $

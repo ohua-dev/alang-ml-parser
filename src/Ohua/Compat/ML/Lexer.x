@@ -17,14 +17,15 @@ import Ohua.Prelude hiding (undefined)
 
 import qualified Data.ByteString.Lazy.Char8 as BS
 
-import Prelude (undefined)
+import Prelude (undefined, read)
 }
 
 %wrapper "monad-bytestring"
 
 $char = [a-zA-Z]
 $sym  = [\-\>\<\$\*\+\?\~\^\=_]
-$numerical = [0-9]
+$num_not_zero = [1-9]
+$numerical = [$num_not_zero 0]
 $reserved = [@\#\{\}\[\]]
 $idstartchar = [$char _]
 $idchar = [$numerical $idstartchar]
@@ -32,6 +33,8 @@ $sep = [$white]
 
 @id = $idstartchar $idchar*
 @ns = @id (\. @id)*
+
+@number = $num_not_zero $numerical* | 0
 
 
 :-
@@ -59,6 +62,7 @@ $sep = [$white]
     "=>"            { direct OPDoubleArrow }
     "\"             { direct OPLambda } -- "
     "λ"             { direct OPLambda }
+    "$" @number     { tokenOverInputStr $ EnvRef . makeThrow . read . BS.unpack . BS.tail }
     @id             { tokenOverInputStr $ UnqualId . convertId }
     @ns\/@id        { tokenOverInputStr $ QualId . mkQualId }
     @ns             { tokenOverInputStr $ ModuleId . mkNSRef }
@@ -99,6 +103,7 @@ data Lexeme
     | OPArrow -- ^ operator @->@
     | OPDoubleArrow -- ^ operator @=>@
     | OPLambda -- ^ operator @\\@ or @λ@
+    | EnvRef HostExpr -- ^ a reference to an env expression
     | UnqualId Binding -- ^ an identifier
     | QualId QualifiedBinding -- ^ a qualified binding
     | ModuleId NSRef -- ^ an identifier for a module

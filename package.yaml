@@ -39,6 +39,7 @@ default-extensions:
 - StandaloneDeriving
 - NoImplicitPrelude
 - RankNTypes
+- TypeOperators
 library:
   source-dirs: src
   exposed-modules:
@@ -64,3 +65,4 @@ tests:
     - QuickCheck
     - text
     - unordered-containers
+    - ohua-test-tools

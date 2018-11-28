@@ -48,6 +48,7 @@ library:
   dependencies:
   - array
   - unordered-containers
+  - lens
   build-tools:
   - alex
   - happy

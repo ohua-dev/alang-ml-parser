@@ -11,15 +11,15 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase, TupleSections, TypeFamilies, FlexibleContexts #-}
 module Ohua.Compat.ML.Parser
     ( parseMod, parseExp
-    , parseExprWithEnvRef
     , Namespace(..)
     ) where
 
 import Ohua.Prelude
 
+import Control.Lens (view)
 import Ohua.Compat.ML.Lexer
-import Ohua.ALang.Lang
-import Ohua.ALang.NS
+import Ohua.Frontend.Lang
+import Ohua.Frontend.NS
 import qualified Data.HashMap.Strict as HM
 import qualified Ohua.ParseTools.Refs as Refs
 import qualified Ohua.ALang.Refs as Refs
@@ -44,6 +44,7 @@ import Prelude ((!!))
     qualid          { QualId $$ }
     nsid            { ModuleId $$ }
     envRef          { EnvRef $$ }
+    number          { Number $$ }
 
     let             { KWLet }
     in              { KWIn }
@@ -54,6 +55,7 @@ import Prelude ((!!))
     if              { KWIf }
     then            { KWThen }
     else            { KWElse }
+    with            { KWWith }
     '('             { LParen }
     ')'             { RParen }
     '{'             { LBrace }
@@ -92,102 +94,85 @@ or(a, b)
     : a { Left $1 }
     | b { Right $1 }
 
-SomeId :: { SomeBinding }
-SomeId
-    : id     { Unqual $1 }
-    | qualid { Qual $1 }
-
-ModId :: { NSRef }
 ModId
+    :: { NSRef }
     : id    { makeThrow [$1] :: NSRef }
     | nsid  { $1 }
 
-Module :: { Module }
 Module
+    :: { Module }
     : ModHeader many(Import) many(Decl) { ($1, $2, $3) }
 
-ModHeader :: { ModHeader }
 ModHeader
+    :: { ModHeader }
     : module ModId { $2 }
 
-Import :: { Import }
 Import
-    : import ImportType ModId opt(Refers) opt(';;') { $2 ($3, fromMaybe [] $4) }
+    :: { Import }
+    : import ImportType ModId opt(Refers) opt(';;') { ($2, $3, fromMaybe [] $4) }
 
 Refers :: { [Binding] }
     : '(' many_sep(id, ',') ')' { $2 }
 
-ImportType :: { (NSRef, [Binding]) -> Import }
 ImportType
-    : algo { Right }
-    | sf   { Left }
+    :: { Bool }
+    : algo { True }
+    | sf   { False }
 
-Decl :: { Decl }
 Decl
+    :: { Decl }
     : ValDecl { $1 }
 
-ValDecl :: { ValDecl }
 ValDecl
+    :: { ValDecl }
     : let LetRhs '=' Exp ';;' { let (pat1, f) = $2 in
                                 case pat1 of
-                                    Destructure xs -> error $ "Destructuring not allowed for top level bindings: " <> show xs
-                                    Direct bnd -> (bnd, f $4) }
+                                    VarP bnd -> (bnd, f $4)
+                                    xs -> error $ "Non-var patterns not allowed for top level bindings: " <> show xs }
 
-SimpleExp :: { Exp }
 SimpleExp
-    : '(' TupleOrExp ')' { $2 }
-    | envRef             { Var $ Left $1 }
-    | SomeId             { Var $ Right $1 }
+    :: { Exp }
+    : '(' many_sep(Exp, ',') ')' { case $2 of
+                                       [] -> LitE UnitLit
+                                       [x] -> x
+                                       xs -> TupE xs }
+    | number                     { LitE $ NumericLit $1 }
+    | envRef                     { LitE $ EnvRefLit $1 }
+    | qualid                     { LitE $ FunRefLit $ FunRef $1 Nothing }
+    | id                         { VarE $1 }
 
 Exp :: { Exp }
-Exp
-    : Exp SimpleExp            { Apply $1 $2 }
-    | 'λ' many1(Pat) '->' Exp  { foldr' Lambda $4 $2 }
+    : Exp SimpleExp            { AppE $1 [$2] }
+    | 'λ' many1(Pat) '->' Exp  { LamE (toList $2) $4 }
     | let Let in Exp           { $2 $4 }
-    | if Exp then Exp else Exp { mapBuiltin Refs.ifBuiltin `Apply` $2 `Apply` ignoreArgLambda $4 `Apply` ignoreArgLambda $6 }
-    | Exp ';' Exp              { ignoreArgLet $1 $3 }
+    | if Exp then Exp else Exp { IfE $2 $4 $6 }
+    | Exp ';' Exp              { StmtE $1 $3 }
+    | Exp with Exp             { BindE $1 $3 }
     | SimpleExp                { $1 }
 
 Let :: { Exp -> Exp }
-Let
-    : LetRhs '=' Exp { let (xs, f) = $1 in Let xs $ f $3 }
+    : LetRhs '=' Exp { let (xs, f) = $1 in LetE xs $ f $3 }
 
-LetRhs :: { (Pat, Exp -> Exp) }
 LetRhs
-    : many1(Pat) { let x :| xs = $1 in (x, \a -> foldr' Lambda a xs) }
-
-TupleOrExp :: { Exp }
-TupleOrExp
-    : many_sep(Exp, ',') { case $1 of
-                               [] -> mapBuiltin someUnitExpr
-                               [x] -> x
-                               xs -> foldl' Apply (Var $ Right $ Qual Refs.mkTuple) xs }
+    :: { (Pat, Exp -> Exp) }
+    : many1(Pat) { let x :| xs = $1 in (x, \a -> if null xs then a else LamE xs a) }
 
 Pat :: { Pat }
-Pat
-    : Destructure { $1 }
-    | id          { Direct $1 }
-
-Destructure :: { Pat }
-    : '(' many_sep1(id, ',') ')' { let x :| xs = $2 in
-                                   if null xs
-                                      then Direct x
-                                      else Destructure $ x : xs }
+    : '(' many_sep(Pat, ',') ')' { case $2 of
+                                       [] -> UnitP
+                                       [x] -> x
+                                       x:xs -> TupP $ x : xs }
+    | id          { VarP $1 }
 
 {
 
 type Decl = ValDecl
 type ValDecl = (Binding, Exp)
 type Module = (ModHeader, [Import], [Decl])
-type Import = Either (NSRef, [Binding]) (NSRef, [Binding])
+type Import = (Bool, NSRef, [Binding])
 type ModHeader = NSRef
-type Exp = Expr (Either HostExpr SomeBinding)
-type Pat = Assignment
+type Exp = Expr
 type PM = Alex
-
-ignoreArgLambda = Lambda (Direct "_")
-ignoreArgLet = Let (Direct "_")
-
 
 nextToken :: PM Lexeme
 nextToken = alexMonadScan
@@ -203,27 +188,20 @@ parseError token = do
   (line, col) <- getLexerPos
   alexError $ ("Parse error at line " <> show line <> ", column " <> show col <> ", on token " <> show token :: String)
 
-removeEnvExprs :: Exp -> Expr SomeBinding
-removeEnvExprs = second (either (error "Env bindings are not supported yet") id)
-
-mapBuiltin :: Expr SomeBinding -> Exp
-mapBuiltin = second pure
-
-parseExprWithEnvRef :: Input -> Exp
-parseExprWithEnvRef = runPM parseExpRaw
-
-parseExp :: Input -> Expr SomeBinding
-parseExp = removeEnvExprs . parseExprWithEnvRef
+parseExp :: Input -> Expr
+parseExp = runPM parseExpRaw
 
 
 -- | Parse a stream of tokens into a namespace
-parseMod :: Input -> Namespace (Expr SomeBinding)
+parseMod :: Input -> Namespace Expr
 parseMod = f . runPM parseModRaw
   where
-    f (name, imports, decls0) = (emptyNamespace name :: Namespace SomeBinding)
+    f (name, imports, decls0) = (emptyNamespace name :: Namespace ())
       & algoImports .~ algoRequires
       & sfImports .~ sfRequires
-      & decls .~ fmap removeEnvExprs (HM.fromList decls0)
+      & decls .~ HM.fromList decls0
       where
-        (sfRequires, algoRequires) = partitionEithers imports
+        dropImportType = map $ \(_, b, c) -> (b, c)
+        sfRequires = dropImportType $ filter (not . view _1) imports
+        algoRequires = dropImportType $ filter (view _1) imports
 }

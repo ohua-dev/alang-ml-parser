@@ -53,6 +53,7 @@ $sep = [$white]
     "algo"          { direct KWAlgo }
     "sf"            { direct KWSf }
     "module"        { direct KWModule }
+    "with"          { direct KWWith }
     "="             { direct OPEq }
     ":"             { direct OPColon }
     ";"             { direct OPSemicolon }
@@ -60,8 +61,8 @@ $sep = [$white]
     ","             { direct OPComma }
     "->"            { direct OPArrow }
     "=>"            { direct OPDoubleArrow }
-    "\"             { direct OPLambda } -- "
-    "λ"             { direct OPLambda }
+    "\" | "λ"       { direct OPLambda } -- "
+    @number         { tokenOverInputStr $ Number . read . BS.unpack }
     "$" @number     { tokenOverInputStr $ EnvRef . makeThrow . read . BS.unpack . BS.tail }
     @id             { tokenOverInputStr $ UnqualId . convertId }
     @ns\/@id        { tokenOverInputStr $ QualId . mkQualId }
@@ -95,6 +96,7 @@ data Lexeme
     | KWImport -- ^ keyword @import@
     | KWAlgo -- ^ keyword @algo@
     | KWSf -- ^ keyword @sf@
+    | KWWith
     | OPEq -- ^ operator @=@
     | OPColon -- ^ operator @:@
     | OPSemicolon -- ^ operator @;@
@@ -103,6 +105,7 @@ data Lexeme
     | OPArrow -- ^ operator @->@
     | OPDoubleArrow -- ^ operator @=>@
     | OPLambda -- ^ operator @\\@ or @λ@
+    | Number Integer
     | EnvRef HostExpr -- ^ a reference to an env expression
     | UnqualId Binding -- ^ an identifier
     | QualId QualifiedBinding -- ^ a qualified binding

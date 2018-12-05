@@ -8,15 +8,18 @@ import           Data.ByteString.Lazy     as B
 import           Test.Hspec
 import Test.Hspec.QuickCheck
 
-import Ohua.ALang.Lang
-import Ohua.ALang.NS
-import Ohua.ALang.PPrint
+import Ohua.Frontend.Lang
+import Ohua.Frontend.NS
 import Ohua.Compat.ML.Parser
 import Ohua.Types.Arbitrary ()
 import Ohua.Unit
 
-lp :: B.ByteString -> Expr SomeBinding
+lp :: B.ByteString -> Expr
 lp = parseExp
+
+pattern Apply a b <- AppE a [b]
+    where Apply a b = AppE a [b]
+pattern SfE a b = LitE (FunRefLit (FunRef a b))
 
 main :: IO ()
 main =
@@ -25,69 +28,60 @@ main =
         describe "var" $ do
             it "parses an unqualified binding" $ lp "a" `shouldBe` "a"
             it "parses a qualified binding" $
-                lp "a.b/c" `shouldBe` Var (Qual "a.b/c")
-            it "parses env refs" $
-                parseExprWithEnvRef "$1" `shouldBe` Var (Left 1)
-            it "parses unit" $
-                lp "()" `shouldBe` someUnitExpr
+                lp "a.b/c" `shouldBe` SfE "a.b/c" Nothing
+            it "parses env refs" $ lp "$1" `shouldBe` LitE (EnvRefLit 1)
+            it "parses unit" $ lp "()" `shouldBe` LitE UnitLit
         describe "apply" $ do
-            it "parses a simple apply" $ lp "a b" `shouldBe` ("a" `Apply` "b")
+            it "parses a simple apply" $ lp "a b" `shouldBe` AppE "a" ["b"]
             it "parses a multi apply" $
                 lp "something a b c" `shouldBe`
                 ("something" `Apply` "a" `Apply` "b" `Apply` "c")
         describe "let" $ do
-            it "parses a let" $ lp "let a = b in b" `shouldBe` Let "a" "b" "b"
+            it "parses a let" $ lp "let a = b in b" `shouldBe` LetE "a" "b" "b"
             it "parses longer let binds" $
                 lp "let a = r in let b = f in let c = print j in a" `shouldBe`
-                Let "a" "r" (Let "b" "f" $ Let "c" ("print" `Apply` "j") "a")
+                LetE "a" "r" (LetE "b" "f" $ LetE "c" ("print" `Apply` "j") "a")
         describe "lambda" $ do
             it "parses a simple lambda" $
-                lp "\\ a -> b" `shouldBe` Lambda "a" "b"
+                lp "\\ a -> b" `shouldBe` LamE ["a"] "b"
             it "parses consecutive lambdas" $
                 lp "\\ a -> \\ (b, c) -> print a; c" `shouldBe`
-                Lambda
-                    "a"
-                    (Lambda (Destructure ["b", "c"]) $
-                     Let "_" ("print" `Apply` "a") "c")
+                LamE ["a"] (LamE [["b", "c"]] $ StmtE ("print" `Apply` "a") "c")
             it "parses a lambda with 2 arguments" $
                 lp "\\ a (b, c) -> print a; c" `shouldBe`
-                Lambda
-                    "a"
-                    (Lambda (Destructure ["b", "c"]) $
-                     Let "_" ("print" `Apply` "a") "c")
+                LamE ["a", ["b", "c"]] (StmtE ("print" `Apply` "a") "c")
             it "parses a let following a statement" $
-                lp "print a; let x = b in b" `shouldBe` Let "_" ("print" `Apply` "a") (Let "x" "b" "b")
+                lp "print a; let x = b in b" `shouldBe`
+                StmtE ("print" `Apply` "a") (LetE "x" "b" "b")
         describe "comments" $ do
             it "parses a comment" $ lp "a (* comment *)" `shouldBe` "a"
             it "parses a comment in an application" $
                 lp "a (* another comment *) b" `shouldBe` "a" `Apply` "b"
         it "supports the wildcard binding" $ do
             lp "_" `shouldBe` "_"
-            lp "let (_, _) = a in b" `shouldBe` Let ["_", "_"] "a" "b"
+            lp "let (_, _) = a in b" `shouldBe` LetE ["_", "_"] "a" "b"
         it "parses the example module" $
             (parseMod <$> B.readFile "test-resources/something.ohuaml") `shouldReturn`
             ((emptyNamespace ["some_ns"] :: Namespace ()) &
              algoImports .~ [(["some", "module"], ["a"])] &
              sfImports .~ [(["ohua", "math"], ["mult", "isZero"])] &
              decls .~
-             [ ("square", Lambda "x" ("mult" `Apply` "x" `Apply` "x"))
+             [ ("square", LamE ["x"] ("mult" `Apply` "x" `Apply` "x"))
              , ( "algo1"
-               , Lambda "someParam" $
-                 Let "a" ("square" `Apply` "someParam") $
-                 Let
+               , LamE ["someParam"] $
+                 LetE "a" ("square" `Apply` "someParam") $
+                 LetE
                      "coll0"
-                     ("ohua.lang/smap" `Apply` Lambda "i" ("square" `Apply` "i") `Apply`
+                     (SfE "ohua.lang/smap" Nothing `Apply`
+                      LamE ["i"] ("square" `Apply` "i") `Apply`
                       "coll")
-                     ("ohua.lang/if" `Apply` ("isZero" `Apply` "a") `Apply`
-                      Lambda "_" "coll0" `Apply`
-                      Lambda "_" "a"))
-             , ( "main"
-               , Lambda "param" $ Lambda "param2" ("algo0" `Apply` "param"))
+                     (IfE ("isZero" `Apply` "a") "coll0" "a"))
+             , ("main", LamE ["param", "param2"] ("algo0" `Apply` "param"))
              ])
-        describe "pretty-printing <=> parsing equality" $ do
-          prop "parses pretty printed alang" $
-            \expr ->
-              lp (encodeUtf8 (quickRender expr)) == (expr :: Expr SomeBinding)
+        -- describe "pretty-printing <=> parsing equality" $ do
+        --   prop "parses pretty printed alang" $
+        --     \expr ->
+        --       lp (encodeUtf8 (quickRender expr)) == (expr :: Expr SomeBinding)
           -- This test kinda works, but also runs into some infinite loop ...
           -- we should figure out why at some point, but for now it seems to
           -- work ... kind

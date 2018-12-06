@@ -62,6 +62,7 @@ $sep = [$white]
     "->"            { direct OPArrow }
     "=>"            { direct OPDoubleArrow }
     "\" | "λ"       { direct OPLambda } -- "
+    "-"             { direct OPMinus }
     @number         { tokenOverInputStr $ Number . read . BS.unpack }
     "$" @number     { tokenOverInputStr $ EnvRef . makeThrow . read . BS.unpack . BS.tail }
     @id             { tokenOverInputStr $ UnqualId . convertId }
@@ -105,6 +106,7 @@ data Lexeme
     | OPArrow -- ^ operator @->@
     | OPDoubleArrow -- ^ operator @=>@
     | OPLambda -- ^ operator @\\@ or @λ@
+    | OPMinus
     | Number Integer
     | EnvRef HostExpr -- ^ a reference to an env expression
     | UnqualId Binding -- ^ an identifier

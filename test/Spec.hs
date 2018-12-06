@@ -11,7 +11,7 @@ import Test.Hspec.QuickCheck
 import Ohua.Frontend.Lang
 import Ohua.Frontend.NS
 import Ohua.Compat.ML.Parser
-import Ohua.Types.Arbitrary ()
+-- import Ohua.Types.Arbitrary ()
 import Ohua.Unit
 
 lp :: B.ByteString -> Expr
@@ -27,10 +27,22 @@ main =
     describe "parser and lexer" $ do
         describe "var" $ do
             it "parses an unqualified binding" $ lp "a" `shouldBe` "a"
-            it "parses a qualified binding" $
-                lp "a.b/c" `shouldBe` SfE "a.b/c" Nothing
+            it "supports the wildcard binding" $ do
+                lp "_" `shouldBe` "_"
+                lp "let (_, _) = a in b" `shouldBe` LetE ["_", "_"] "a" "b"
+        describe "literals" $ do
             it "parses env refs" $ lp "$1" `shouldBe` LitE (EnvRefLit 1)
             it "parses unit" $ lp "()" `shouldBe` LitE UnitLit
+            it "parses a qualified binding" $
+                lp "a.b/c" `shouldBe` SfE "a.b/c" Nothing
+            it "parses integer literals" $ do
+                lp "0" `shouldBe` LitE (NumericLit 0)
+                lp "1" `shouldBe` LitE (NumericLit 1)
+                lp "1000030" `shouldBe` LitE (NumericLit 1000030)
+            it "parses negative literals" $ do
+                lp "-1" `shouldBe` LitE (NumericLit (-1))
+                lp "- 1" `shouldBe` LitE (NumericLit (-1))
+                lp "-1000030" `shouldBe` LitE (NumericLit (-1000030))
         describe "apply" $ do
             it "parses a simple apply" $ lp "a b" `shouldBe` AppE "a" ["b"]
             it "parses a multi apply" $
@@ -57,9 +69,6 @@ main =
             it "parses a comment" $ lp "a (* comment *)" `shouldBe` "a"
             it "parses a comment in an application" $
                 lp "a (* another comment *) b" `shouldBe` "a" `Apply` "b"
-        it "supports the wildcard binding" $ do
-            lp "_" `shouldBe` "_"
-            lp "let (_, _) = a in b" `shouldBe` LetE ["_", "_"] "a" "b"
         it "parses the example module" $
             (parseMod <$> B.readFile "test-resources/something.ohuaml") `shouldReturn`
             ((emptyNamespace ["some_ns"] :: Namespace ()) &

@@ -67,6 +67,7 @@ import Prelude ((!!))
     ','             { OPComma }
     '->'            { OPArrow }
     'λ'             { OPLambda }
+    '-'             { OPMinus }
     '_'             { UnqualId "_" }
 
 %%
@@ -136,7 +137,7 @@ SimpleExp
                                        [] -> LitE UnitLit
                                        [x] -> x
                                        xs -> TupE xs }
-    | number                     { LitE $ NumericLit $1 }
+    | opt('-') number            { LitE $ NumericLit $ maybe id (const negate) $1 $2 }
     | envRef                     { LitE $ EnvRefLit $1 }
     | qualid                     { LitE $ FunRefLit $ FunRef $1 Nothing }
     | id                         { VarE $1 }

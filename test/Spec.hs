@@ -43,6 +43,8 @@ main =
                 lp "-1" `shouldBe` LitE (NumericLit (-1))
                 lp "- 1" `shouldBe` LitE (NumericLit (-1))
                 lp "-1000030" `shouldBe` LitE (NumericLit (-1000030))
+            it "() is a valid pattern" $
+                lp "\\() -> a" `shouldBe` LamE [UnitP] "a"
         describe "apply" $ do
             it "parses a simple apply" $ lp "a b" `shouldBe` AppE "a" ["b"]
             it "parses a multi apply" $

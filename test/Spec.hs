@@ -67,6 +67,21 @@ main =
             it "parses a let following a statement" $
                 lp "print a; let x = b in b" `shouldBe`
                 StmtE ("print" `Apply` "a") (LetE "x" "b" "b")
+        describe "state binding" $ do
+            it "parses a simple state binding" $
+                lp "x with a" `shouldBe` BindE "x" "a"
+            it ".. with literal" $ do
+                lp "x with ()" `shouldBe` BindE "x" (LitE UnitLit)
+                lp "x with 1" `shouldBe` BindE "x" (LitE (NumericLit 1))
+            describe "precedence" $ do
+                it "apply before bind" $
+                    lp "x with a b" `shouldBe` BindE "x" (AppE "a" ["b"])
+                it "parenthesized bind" $
+                    lp "(x with a) b" `shouldBe` AppE (BindE "x" "a") ["b"]
+                it "let before bind" $
+                    lp "x with let y = a in y" `shouldBe` BindE "x" (LetE "y" "a" "y")
+                it "bind in let" $
+                    lp "let y = x with a in y" `shouldBe` LetE "y" (BindE "x" "a") "y"
         describe "comments" $ do
             it "parses a comment" $ lp "a (* comment *)" `shouldBe` "a"
             it "parses a comment in an application" $

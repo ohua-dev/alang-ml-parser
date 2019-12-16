@@ -1,11 +1,11 @@
 resolver: lts-12.10
 packages:
 - .
-- location:
-    git: https://github.com/ohua-dev/ohua-core
+
+extra-deps: 
+  - git: https://github.com/ohua-dev/ohua-core
     commit: cc55e0fe5737311a1657e7ac1df2e93294e79f45
-  subdirs: [core, test-tools]
-  extra-dep: true
-extra-deps: []
+    subdirs: [core, test-tools]
+
 flags: {}
 extra-package-dbs: []
